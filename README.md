@@ -474,8 +474,8 @@ Este projeto está licenciado sob a Licença MIT. Veja o arquivo `LICENSE` para 
 ## 📞 Contato
 
 Para dúvidas técnicas ou sugestões:
-- **GitHub Issues**: [Criar issue](https://github.com/seu-usuario/repo/issues)
-- **Email**: seu-email@exemplo.com
+- **GitHub Issues**: [Criar issue](https://github.com/dheiver2/Stream-Detection-API)
+- **Email**: dheiver.santos@gmail.com
 
 ---
 
