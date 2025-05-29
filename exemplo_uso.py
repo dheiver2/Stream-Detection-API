@@ -7,7 +7,10 @@ Este script demonstra como usar a API para detectar pessoas em câmeras RTSP.
 import requests
 import json
 import time
+import os
+import shutil
 from typing import List, Dict
+from datetime import datetime
 
 # Configuração da API
 API_BASE_URL = "http://localhost:8000"
@@ -72,6 +75,54 @@ class RTSPDetectorClient:
         
         print(f"Frame salvo em: {save_path}")
 
+def setup_detection_directories(streams):
+    """Configura e limpa os diretórios de detecção para cada stream."""
+    base_dir = "./detections"
+    os.makedirs(base_dir, exist_ok=True)
+    
+    # Criar arquivo de metadados
+    metadata_file = os.path.join(base_dir, "metadata.json")
+    metadata = {
+        "created_at": datetime.now().isoformat(),
+        "streams": {}
+    }
+    
+    for stream in streams:
+        stream_id = stream["stream_id"]
+        stream_dir = os.path.join(base_dir, stream_id)
+        
+        # Criar estrutura de diretórios
+        dirs = {
+            "frames": os.path.join(stream_dir, "frames"),  # Frames com detecções
+            "events": os.path.join(stream_dir, "events"),  # Eventos importantes
+            "logs": os.path.join(stream_dir, "logs"),      # Logs de detecção
+            "temp": os.path.join(stream_dir, "temp")       # Arquivos temporários
+        }
+        
+        # Criar diretórios
+        for dir_path in dirs.values():
+            os.makedirs(dir_path, exist_ok=True)
+        
+        # Limpar diretório temp se existir
+        if os.path.exists(dirs["temp"]):
+            shutil.rmtree(dirs["temp"])
+        os.makedirs(dirs["temp"])
+        
+        # Atualizar metadados
+        metadata["streams"][stream_id] = {
+            "url": stream["url"],
+            "created_at": datetime.now().isoformat(),
+            "directories": dirs,
+            "model_config": stream["model_config"],
+            "rtsp_config": stream["rtsp_config"]
+        }
+    
+    # Salvar metadados
+    with open(metadata_file, 'w') as f:
+        json.dump(metadata, f, indent=2)
+    
+    return base_dir
+
 def exemplo_basico():
     """Exemplo básico de uso da API."""
     print("=== Exemplo Básico de Uso da API ===")
@@ -79,17 +130,43 @@ def exemplo_basico():
     # Inicializar cliente
     client = RTSPDetectorClient()
     
-    # Configurar streams (substitua pelas suas URLs RTSP reais)
+    # Configurar streams com diferentes modelos e configurações
     streams = [
         {
             "url": "rtsp://apoio:apoio5971@206.42.30.104:4501/cam/realmonitor?channel=4&subtype=0",
             "stream_id": "camera_01",
-            "output_dir": "./detections/camera_01"
+            "output_dir": "./detections/camera_01",
+            "model_config": {
+                "model_name": "yolov8n.pt",  # Modelo nano
+                "conf_threshold": 0.5,
+                "classes": [0],  # Apenas pessoas
+                "img_size": 640,
+                "process_every_n_frames": 2  # Processar a cada 2 frames
+            },
+            "rtsp_config": {
+                "timeout": 30000000,
+                "buffer_size": 2048,
+                "reconnect_attempts": 5,
+                "reconnect_delay": 3
+            }
         },
         {
             "url": "rtsp://apoio:apoio5971@206.42.30.104:4501/cam/realmonitor?channel=13&subtype=0",
             "stream_id": "camera_02",
-            "output_dir": "./detections/camera_02"
+            "output_dir": "./detections/camera_02",
+            "model_config": {
+                "model_name": "yolov8n.pt",  # Modelo nano
+                "conf_threshold": 0.6,
+                "classes": [0, 2, 3, 5, 7],  # Pessoas, carros, motos, ônibus, caminhões
+                "img_size": 640,
+                "process_every_n_frames": 1  # Processar todos os frames
+            },
+            "rtsp_config": {
+                "timeout": 60000000,  # Timeout maior
+                "buffer_size": 4096,  # Buffer maior
+                "reconnect_attempts": 3,
+                "reconnect_delay": 5
+            }
         }
     ]
     
@@ -117,8 +194,12 @@ def exemplo_basico():
                 stream_id = stream_config["stream_id"]
                 try:
                     stream_status = client.get_stream_status(stream_id)
-                    print(f"   {stream_id}: {stream_status['status']} - "
-                          f"Pessoas detectadas: {stream_status['people_detected']}")
+                    model_info = stream_config["model_config"]
+                    print(f"\n   {stream_id}:")
+                    print(f"   Status: {stream_status['status']}")
+                    print(f"   Modelo: {model_info['model_name']}")
+                    print(f"   Pessoas detectadas: {stream_status['people_detected']}")
+                    print(f"   Última detecção: {stream_status.get('last_detection', 'Nenhuma')}")
                 except requests.exceptions.HTTPError:
                     print(f"   {stream_id}: Sem dados ainda")
         
@@ -150,49 +231,169 @@ def exemplo_basico():
         print(f"❌ Erro: {e}")
 
 def exemplo_monitoramento():
-    """Exemplo de monitoramento contínuo."""
+    """Exemplo de monitoramento contínuo com configurações personalizadas."""
     print("=== Exemplo de Monitoramento Contínuo ===")
+    print("Status da conexão e detecção:")
+    print("-" * 50)
     
     client = RTSPDetectorClient()
     
-    # Stream único para teste
+    # Stream com configurações otimizadas para monitoramento
     streams = [
         {
-            "url": "rtsp://usuario:senha@ip:porta/path",  # Substitua pela sua URL
+            "url": "rtsp://apoio:apoio5971@206.42.30.104:4501/cam/realmonitor?channel=4&subtype=0",  # URL da camera_01
             "stream_id": "monitor_principal",
-            "output_dir": "./detections/monitor"
+            "model_config": {
+                "model_name": "yolov8n.pt",  # Modelo nano
+                "conf_threshold": 0.4,  # Mais sensível
+                "classes": [0],  # Apenas pessoas
+                "img_size": 480,  # Resolução menor para performance
+                "process_every_n_frames": 3,  # Processar a cada 3 frames
+                "save_config": {  # Configuração de salvamento
+                    "save_all_frames": False,  # Não salvar todos os frames
+                    "save_detections": True,   # Salvar frames com detecções
+                    "save_events": True,       # Salvar eventos importantes
+                    "max_frames_per_day": 1000,  # Limite de frames por dia
+                    "compression_quality": 85,   # Qualidade da compressão JPEG
+                    "max_storage_days": 7        # Manter por 7 dias
+                }
+            },
+            "rtsp_config": {
+                "timeout": 30000000,
+                "buffer_size": 1024,
+                "reconnect_attempts": 10,  # Mais tentativas de reconexão
+                "reconnect_delay": 2  # Delay menor entre tentativas
+            }
         }
     ]
     
     try:
+        # Configurar diretórios de detecção
+        print("1. Configurando diretórios de detecção...")
+        base_dir = setup_detection_directories(streams)
+        print(f"✓ Diretórios configurados em: {base_dir}")
+        
+        # Atualizar output_dir nos streams
+        for stream in streams:
+            stream["output_dir"] = os.path.join(base_dir, stream["stream_id"])
+        
         # Iniciar detecção
-        print("Iniciando monitoramento...")
-        client.start_detection(streams)
+        print("\n2. Iniciando conexão com a câmera...")
+        result = client.start_detection(streams)
+        print(f"✓ Conexão iniciada: {result['message']}")
+        print(f"✓ ID da tarefa: {result['task_id']}")
+        
+        # Aguardar inicialização
+        print("\n3. Aguardando inicialização do stream (5 segundos)...")
+        time.sleep(5)
         
         # Monitoramento contínuo
+        print("\n4. Iniciando monitoramento contínuo")
         print("Pressione Ctrl+C para parar o monitoramento")
+        print("-" * 50)
+        
+        last_status = None
+        consecutive_errors = 0
+        last_cleanup = time.time()
+        
         while True:
             try:
+                # Verificar necessidade de limpeza de arquivos antigos
+                if time.time() - last_cleanup > 3600:  # A cada hora
+                    for stream in streams:
+                        stream_dir = stream["output_dir"]
+                        cleanup_old_files(stream_dir, stream["model_config"]["save_config"]["max_storage_days"])
+                    last_cleanup = time.time()
+                
                 stream_status = client.get_stream_status("monitor_principal")
-                print(f"[{time.strftime('%H:%M:%S')}] Status: {stream_status['status']} - "
-                      f"Pessoas: {stream_status['people_detected']} - "
-                      f"Última detecção: {stream_status.get('last_detection', 'Nenhuma')}")
+                current_status = stream_status['status']
+                
+                # Verificar mudança de status
+                if current_status != last_status:
+                    print(f"\n[{time.strftime('%H:%M:%S')}] Status do Stream: {current_status}")
+                    if current_status == "running":
+                        print("✓ Stream conectado e processando frames")
+                    elif current_status == "connecting":
+                        print("⏳ Tentando conectar ao stream...")
+                    elif current_status == "error":
+                        print("❌ Erro na conexão do stream")
+                    elif current_status == "stopped":
+                        print("⏹ Stream parado")
+                    last_status = current_status
+                
+                # Verificar detecções
+                if current_status == "running":
+                    detections = stream_status.get('detections', {})
+                    people_detected = detections.get('person', 0)  # Usar 'person' em vez de 'people_detected'
+                    last_detection = stream_status.get('last_detection', 'Nenhuma')
+                    fps = stream_status.get('performance_metrics', {}).get('fps', 0)
+                    
+                    print(f"\n[{time.strftime('%H:%M:%S')}] Status da Detecção:")
+                    print(f"✓ Pessoas detectadas: {people_detected}")
+                    print(f"✓ Última detecção: {last_detection}")
+                    print(f"✓ FPS atual: {fps:.1f}")
+                    
+                    # Verificar performance
+                    if fps < 1.0:
+                        print("⚠️ Performance baixa: FPS muito baixo")
+                    elif fps > 0 and fps < 5.0:
+                        print("⚠️ Performance moderada: FPS abaixo do ideal")
+                    
+                    consecutive_errors = 0  # Resetar contador de erros
+                else:
+                    consecutive_errors += 1
+                    if consecutive_errors > 3:
+                        print("\n⚠️ Possíveis problemas:")
+                        print("1. Verifique se a URL da câmera está correta")
+                        print("2. Verifique se a câmera está online")
+                        print("3. Verifique se as credenciais estão corretas")
+                        print("4. Verifique sua conexão com a internet")
+                        print("5. Verifique se a porta está acessível")
+                        consecutive_errors = 0  # Resetar após mostrar mensagem
                 
                 time.sleep(10)  # Verificar a cada 10 segundos
                 
             except KeyboardInterrupt:
                 print("\nParando monitoramento...")
                 break
-            except requests.exceptions.HTTPError:
-                print(f"[{time.strftime('%H:%M:%S')}] Stream ainda não iniciado...")
+            except requests.exceptions.HTTPError as e:
+                print(f"\n❌ Erro na requisição: {e}")
+                print("Verificando novamente em 5 segundos...")
+                time.sleep(5)
+            except requests.exceptions.ConnectionError:
+                print("\n❌ Erro de conexão com a API")
+                print("Verifique se a API está rodando em http://localhost:8000")
+                break
+            except Exception as e:
+                print(f"\n❌ Erro inesperado: {e}")
+                print("Tentando novamente em 5 segundos...")
                 time.sleep(5)
         
         # Parar stream
+        print("\n5. Finalizando monitoramento...")
         client.stop_stream("monitor_principal")
-        print("Monitoramento finalizado.")
+        print("✓ Monitoramento finalizado com sucesso")
         
     except Exception as e:
-        print(f"Erro no monitoramento: {e}")
+        print(f"\n❌ Erro fatal no monitoramento: {e}")
+        print("Verifique se:")
+        print("1. A API está rodando (http://localhost:8000)")
+        print("2. O modelo YOLO está disponível (yolov8n.pt)")
+        print("3. As credenciais da câmera estão corretas")
+        print("4. A URL da câmera está acessível")
+
+def cleanup_old_files(directory, max_days):
+    """Remove arquivos mais antigos que max_days."""
+    try:
+        current_time = time.time()
+        for root, dirs, files in os.walk(directory):
+            for file in files:
+                file_path = os.path.join(root, file)
+                file_time = os.path.getmtime(file_path)
+                if (current_time - file_time) > (max_days * 86400):  # Converter dias para segundos
+                    os.remove(file_path)
+    except Exception as e:
+        print(f"Erro ao limpar arquivos antigos: {e}")
 
 def exemplo_teste_api():
     """Testa se a API está funcionando."""

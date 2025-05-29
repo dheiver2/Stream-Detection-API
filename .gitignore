@@ -1,0 +1,71 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtualenv
+venv/
+ENV/
+.env/
+.venv/
+
+# IDEs
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Jupyter
+.ipynb_checkpoints
+
+# Logs
+*.log
+logs/
+
+# Testes
+htmlcov/
+.tox/
+.nox/
+.coverage
+coverage.xml
+.cache
+pytest_cache/
+
+# Dados e detecções
+/data/
+/detections/
+*.csv
+*.db
+*.sqlite3
+*.sqlite
+*.h5
+*.pth
+*.pt
+*.onnx
+*.ckpt
+*.weights
+
+# Arquivos temporários
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*.orig
+
+# Configuração
+.env
+.env.*
+.DS_Store
+Thumbs.db
+
+# Docker
+*.pid
+
+# Outros
+*.yml.save 
