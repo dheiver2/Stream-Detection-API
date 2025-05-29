@@ -63,7 +63,7 @@ O projeto usa variáveis de ambiente para configuração. Principais configuraç
 
 1. Inicie o servidor:
 ```bash
-uvicorn api:app --host 0.0.0.0 --port 8000
+uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
 2. Acesse a documentação da API:
